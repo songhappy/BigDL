@@ -69,7 +69,7 @@ def partition_to_creator(partition):
         class NDArrayDataset(Dataset):
             def __init__(self, x, y):
                 self.x = x  # features
-                self.y = y  # labels
+                self.y = y  # labels [y1, y2, y3]
 
             def __len__(self):
                 return get_size(self.y)
@@ -86,8 +86,10 @@ def partition_to_creator(partition):
         data, label = partition_get_data_label(partition,
                                                allow_tuple=False,
                                                allow_list=False)
+        print("in estimator per partition data, ", data[0], label[0])
         print("Data size on worker: ", len(label))
         dataset = NDArrayDataset(data, label)
+        print("dataset")
         data_loader = DataLoader(dataset, **params)
         return data_loader
 
@@ -243,6 +245,7 @@ class PyTorchPySparkEstimator(BaseEstimator):
                 You can also provide custom metrics by passing in a custom HookClass(after 2.2.0)
                 when creating the Estimator.
         """
+        print("in pyspark estimator just get in 1", data.num_partitions())
         invalidInputError(isinstance(batch_size, int) and batch_size > 0,
                           "batch_size should be a positive integer")
         batch_size = batch_size // self.num_workers  # Local batch size for each worker
@@ -250,6 +253,8 @@ class PyTorchPySparkEstimator(BaseEstimator):
             batch_size = 1
         if isinstance(data, SparkXShards):
             data = data.to_lazy()
+            print("in pyspark estimator just get in 2", data.num_partitions())
+
             if validation_data is not None and isinstance(validation_data, SparkXShards):
                 validation_data = validation_data.to_lazy()
         # Data partition should be equal to num workers.
@@ -258,6 +263,7 @@ class PyTorchPySparkEstimator(BaseEstimator):
         if isinstance(data, DataFrame) or isinstance(data, SparkXShards):
             if data.rdd.getNumPartitions() != self.num_workers:
                 data = data.repartition(self.num_workers)
+
             if validation_data is not None:
                 invalidInputError(
                     isinstance(validation_data, DataFrame) or
@@ -306,6 +312,7 @@ class PyTorchPySparkEstimator(BaseEstimator):
                               "Must provide a function for optimizer_creator")
 
         if isinstance(data, SparkXShards):  # Computation triggered when collect
+
             params["wrap_dataloader"] = False
             if data._get_class_name() == 'pandas.core.frame.DataFrame':
                 data, validation_data = process_xshards_of_pandas_dataframe(data, feature_cols,
@@ -314,7 +321,13 @@ class PyTorchPySparkEstimator(BaseEstimator):
 
             if validation_data is None:
                 def transform_func(iter, init_params, param):
+                    print("iter", type(iter))
+                    print(iter)
                     partition_data = list(iter)
+                    print("in pyspark estimator ", len(partition_data))
+                    print(len(partition_data))
+                    print('x shape', (partition_data[0]['x'].shape))
+                    print('y shape', (partition_data[0]['y'].shape))
                     param["data_creator"] = partition_to_creator(partition_data)
                     runner = PytorchPysparkWorker(**init_params)
                     result = runner.train_epochs(**param)
@@ -322,6 +335,8 @@ class PyTorchPySparkEstimator(BaseEstimator):
                     return result
 
                 data_rdd = data.rdd  # type:ignore
+                print("in pyspark estimator,  ", data_rdd.getNumPartitions())
+                print("in pyspark estimator,  ", data.num_partitions())
                 res = data_rdd.barrier().mapPartitions(
                     lambda iter: transform_func(iter, init_params, params)).collect()
 

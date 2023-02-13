@@ -294,6 +294,8 @@ class TorchRunner(BaseRunner):
         self._toggle_profiling(profile=profile)
 
         with self.timers.record("train_epoch"):
+            print("***********")
+            print(data_loader)
             data_loader = iter(data_loader)
             train_stats = self._train_epoch(data_loader, info, callbacks)
 
@@ -324,6 +326,7 @@ class TorchRunner(BaseRunner):
         return stats
 
     def _train_epoch(self, iterator, info, callbacks=None):
+        print("in _train epoch ")
         """Runs one standard training pass over the training dataloader.
 
         By default, this method will iterate over the given iterator and
@@ -400,6 +403,15 @@ class TorchRunner(BaseRunner):
 
     def _train_loop(self, iterator, _progress_bar, metric_meters, callbacks):
         for batch_idx, batch in enumerate(iterator):
+            print("****** in torch runner _train_loop")
+            print(batch_idx)
+            print(type(batch))
+            print("length of batch", len(batch))
+            print("length of batch0", len(batch[0]))
+            print(type(batch[0]))
+            print(batch[0].shape)
+            print(batch[1].shape)
+
             self.batch_idx = batch_idx
 
             self._train_batch(batch, callbacks=callbacks)
@@ -453,6 +465,9 @@ class TorchRunner(BaseRunner):
         # unpack features into list to support multiple inputs model
         # and restore batch to what it should be.
         features, target = batch
+        print(features.shape)
+        print("target", type(target), target.shape)
+
         if torch.is_tensor(features):
             self.batch = features, target
         elif isinstance(features, (tuple, list)):

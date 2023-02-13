@@ -206,6 +206,11 @@ def partition_get_data_label(partition_data,
     :param has_label: Boolean. Whether the data partition contains labels.
     :return: Concatenated data for the data partition.
     """
+    print("in utils partition data")
+    print(type(partition_data))
+    print(len(partition_data))
+    print(partition_data[0]['x'].shape)
+    print(partition_data[0]['y'].shape)
     data_list = [data['x'] for data in partition_data]
     label_list = [data['y'] for data in partition_data]
 
@@ -217,6 +222,12 @@ def partition_get_data_label(partition_data,
     else:
         label = None
 
+    print("in utils converted")
+    print(type(data))
+    print(data.shape)
+    print(type(label))
+    print(label.shape)
+    print(len(data))
     return data, label
 
 

@@ -193,3 +193,40 @@ def read_images_spark(file_path: str,
 
         image_rdd = image_rdd.zip(target_rdd)
     return SparkXShards(image_rdd)
+
+
+def read_coco(file_path: str,
+              split: str = "validation",
+              label_types: [str] = ["segmentations"],
+              classes: [str] = None,
+              max_samples: int = 25,
+              ):
+    spark = OrcaContext.get_spark_session()
+    meta_df = spark.read.parquet(file_path + "/flatparquetdata/")
+    meta_rdd = meta_df.rdd.map(lambda x: (file_path + x['file_name'], (x['id'], x['image_id'], x['bbox'], x['category_id'])))
+
+    file_names = meta_df.select("file_name").distinct().rdd.map(lambda r: r[0])\
+        .map(lambda x: file_path + x)
+
+    def load_image(iterator):
+        for f in iterator:
+            img = open_image(f)
+            yield f, img
+
+    image_rdd = file_names.mapPartitions(load_image)
+
+    def transform_data(x):
+        # print(x)
+        image = x[1][0]
+        target = {}
+        target['bbox'] = x[1][1][2]
+        target['label'] = x[1][1][3]
+        return image, target
+    out_rdd = image_rdd.join(meta_rdd)
+    out_rdd = out_rdd.map(lambda x: transform_data(x))
+
+    return SparkXShards(out_rdd)
+
+
+# def read_voc(data_path:str):
+
