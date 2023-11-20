@@ -47,13 +47,34 @@ import torch
 from torch import nn
 import torch.utils.checkpoint
 import torch.nn.functional as F
-from transformers.models.llama.modeling_llama import (
-    LlamaAttention,
-    rotate_half,
-    apply_rotary_pos_emb,
-    repeat_kv,
-)
+from bigdl.llm.transformers.models.utils import init_kv_cache, extend_kv_cache, append_kv_cache
+from bigdl.llm.transformers.models.utils import rotate_half, apply_rotary_pos_emb
+from bigdl.llm.transformers.models.utils import apply_rotary_pos_emb_no_cache_xpu
+
+
+from transformers.models.llama.modeling_llama import LlamaAttention
+
+# from transformers.models.llama.modeling_llama import (
+#    LlamaAttention,
+#    rotate_half,
+#    apply_rotary_pos_emb,
+#    repeat_kv,
+# )
 import types
+
+def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """
+    This is the equivalent of torch.repeat_interleave(x, dim=1, repeats=n_rep). The hidden states
+    go from (batch, num_key_value_heads, seqlen, head_dim) to
+    (batch, num_attention_heads, seqlen, head_dim)
+    """
+    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    if n_rep == 1:
+        return hidden_states
+    hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads,
+                                                           n_rep, slen, head_dim)
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+KV_CACHE_ALLOC_BLOCK_LENGTH = 256
 
 __all__ = ["enable_llama_pos_shift_attention"]
 
@@ -79,6 +100,8 @@ def llama_pos_shift_attention_forward(
     use_cache: bool = False,
 ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
     bsz, q_len, _ = hidden_states.size()
+   
+    device = hidden_states.device
 
     if self.config.pretraining_tp > 1:
         key_value_slicing = (
@@ -132,10 +155,58 @@ def llama_pos_shift_attention_forward(
     query_states = apply_rotary_pos_emb_single(query_states, cos, sin, position_ids)
     ###
 
+    use_fuse_rope = query_states.device.type == "xpu"
+    # use_fuse_rope = use_fuse_rope and not (self.training and query_states.requires_grad)
+    # use_fuse_rope = use_fuse_rope and self.config.rope_scaling is None
+
+    # if use_fuse_rope:
+    #     query_states, key_states = apply_rotary_pos_emb_no_cache_xpu(query_states,
+    #                                                                  key_states,
+    #                                                                  position_ids,
+    #                                                                  "llama")
+    # else:
+    #     cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+    #     query_states, key_states = apply_rotary_pos_emb(query_states, key_states,
+    #                                                     cos, sin, position_ids, "llama")
+
+    # if past_key_value is not None:
+    #     # reuse k, v, self_attention
+    #     key_states = torch.cat([past_key_value[0], key_states], dim=2)
+    #     value_states = torch.cat([past_key_value[1], value_states], dim=2)
+
     if past_key_value is not None:
         # reuse k, v, self_attention
-        key_states = torch.cat([past_key_value[0], key_states], dim=2)
-        value_states = torch.cat([past_key_value[1], value_states], dim=2)
+        cache_k = past_key_value[0]
+        cache_v = past_key_value[1]
+        if cache_k.stride()[1] <= cache_k.size(2) * cache_k.size(3):
+            # allocate new
+            new_cache_k, new_cache_v = extend_kv_cache(bsz,
+                                                       self.num_key_value_heads,  # Support GQA
+                                                       self.head_dim,
+                                                       cache_k.size(2),
+                                                       kv_seq_len + KV_CACHE_ALLOC_BLOCK_LENGTH,
+                                                       dtype=cache_k.dtype,
+                                                       device=device)
+            new_cache_k[:] = cache_k
+            new_cache_v[:] = cache_v
+            cache_k = new_cache_k
+            cache_v = new_cache_v
+
+        key_states, value_states = append_kv_cache(cache_k, cache_v, key_states, value_states)
+
+    elif use_cache:
+        max_cache_length = kv_seq_len + KV_CACHE_ALLOC_BLOCK_LENGTH
+        new_key_states, new_value_states = init_kv_cache(bsz,
+                                                         self.num_key_value_heads,
+                                                         self.head_dim,
+                                                         kv_seq_len,
+                                                         max_cache_length,
+                                                         dtype=key_states.dtype,
+                                                         device=device)
+        new_key_states[:] = key_states
+        new_value_states[:] = value_states
+        key_states = new_key_states
+        value_states = new_value_states
 
     past_key_value = (key_states, value_states) if use_cache else None
 

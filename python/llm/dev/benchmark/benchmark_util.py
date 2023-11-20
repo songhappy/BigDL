@@ -1191,6 +1191,7 @@ class BenchmarkWrapper:
         synced_gpus: Optional[bool] = None,
         assistant_model: Optional["PreTrainedModel"] = None,
         streamer: Optional["BaseStreamer"] = None,
+        enable_stream: Optional[bool] = False,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
         r"""
@@ -1568,6 +1569,7 @@ class BenchmarkWrapper:
                 return_dict_in_generate=generation_config.return_dict_in_generate,
                 synced_gpus=synced_gpus,
                 streamer=streamer,
+                enable_stream=enable_stream,
                 **model_kwargs,
             )
 
@@ -2221,6 +2223,7 @@ class BenchmarkWrapper:
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: bool = False,
         streamer: Optional["BaseStreamer"] = None,
+        enable_stream: Optional[bool] = False,
         **model_kwargs,
     ) -> Union[GreedySearchOutput, torch.LongTensor]:
         r"""
@@ -2383,8 +2386,11 @@ class BenchmarkWrapper:
                 **model_inputs,
                 return_dict=True,
                 output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
+                output_hidden_states=output_hidden_states
             )
+
+            self.past_key_values =outputs.past_key_values
+      
             if synced_gpus and this_peer_finished:
                 continue  # don't waste resources running the code we don't need
 

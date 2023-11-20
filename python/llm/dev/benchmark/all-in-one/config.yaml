@@ -9,8 +9,8 @@ in_out_pairs:
   - '32-32'
   - '1024-128'
 test_api:
-  - "run_transformer_int4_stream"
-  # - "transformer_int4_gpu"
+  - "run_transformer_int4_stream2"
+  #- "transformer_int4_gpu"
   # - "ipex_fp16_gpu" # on Intel GPU
   # - "transformer_int4_gpu"  # on Intel GPU
   # - "optimize_model_gpu"  # on Intel GPU
