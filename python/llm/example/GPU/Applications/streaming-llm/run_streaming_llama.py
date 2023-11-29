@@ -101,6 +101,7 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
 def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=500):
     past_key_values = None
     for idx, prompt in enumerate(prompts):
+        print("***************************", idx)
         prompt = "USER: " + prompt + "\n\nASSISTANT: "
         print("\n" + prompt, end="")
         input_ids = tokenizer(prompt, return_tensors="pt").input_ids
@@ -112,9 +113,9 @@ def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=50
 
         past_key_values = greedy_generate(
             model, tokenizer, input_ids, past_key_values, max_gen_len=max_gen_len
-        
+       
         )
-        torch.xpu.synchronize()
+        print("******** past key values", past_key_values[0][0].size(), past_key_values[0][1].size())
 
 
 def main(args):
@@ -133,7 +134,7 @@ def main(args):
 
     list_data = load_jsonl(test_filepath)
     prompts = []
-    for sample in list_data[1:5]:
+    for sample in list_data[1:10]:
         prompts += sample["turns"]
 
     if args.enable_streaming:
@@ -159,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument("--data-root", type=str, default="data/")
     parser.add_argument("--enable-streaming", action="store_true")
     parser.add_argument("--start-size", type=int, default=4)
-    parser.add_argument("--recent-size", type=int, default=1000)
+    parser.add_argument("--recent-size", type=int, default=2000)
     args = parser.parse_args()
 
     main(args)
