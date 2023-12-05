@@ -243,7 +243,7 @@ def convert_forward(m, target_m, new_forward):
 
 def _optimize_post(model):
     from packaging import version
-    from bigdl.llm.transformers.models.llama import llama_attention_forward_4_31, llama_attention_forward_4_34
+    from bigdl.llm.transformers.models.llama import llama_attention_forward_4_31, llama_pos_shift_attention_forward, llama_attention_forward_4_34
     from bigdl.llm.transformers.models.llama import llama_rms_norm_forward
     from transformers.modeling_utils import PreTrainedModel
 
@@ -258,7 +258,7 @@ def _optimize_post(model):
         convert_forward(
             model,
             transformers.models.llama.modeling_llama.LlamaAttention,
-            llama_attention_forward_4_34,)
+            llama_pos_shift_attention_forward,)
         convert_forward(
             model,
             transformers.models.llama.modeling_llama.LlamaRMSNorm,

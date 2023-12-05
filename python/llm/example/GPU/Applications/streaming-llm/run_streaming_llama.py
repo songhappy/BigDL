@@ -98,7 +98,7 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
 
 
 @torch.no_grad()
-def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=500):
+def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=200):
     past_key_values = None
     for idx, prompt in enumerate(prompts):
         print("***************************", idx)
@@ -116,12 +116,14 @@ def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=50
        
         )
         print("******** past key values", past_key_values[0][0].size(), past_key_values[0][1].size())
+        print("past key values device", past_key_values[0][0].device)
+        
 
 
 def main(args):
     model, tokenizer = load(args.repo_id_or_model_path)
-    device = 'xpu' if is_torch_xpu_available() else 'cpu'
-    model = model.to(device)
+    # device = 'xpu' if is_torch_xpu_available() else 'cpu'
+    # model = model.to(device)
     test_filepath = os.path.join(args.data_root, "mt_bench.jsonl")
     print(f"Loading data from {test_filepath} ...")
 
@@ -134,7 +136,7 @@ def main(args):
 
     list_data = load_jsonl(test_filepath)
     prompts = []
-    for sample in list_data[1:10]:
+    for sample in list_data[1:5]:
         prompts += sample["turns"]
 
     if args.enable_streaming:
@@ -160,7 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("--data-root", type=str, default="data/")
     parser.add_argument("--enable-streaming", action="store_true")
     parser.add_argument("--start-size", type=int, default=4)
-    parser.add_argument("--recent-size", type=int, default=2000)
+    parser.add_argument("--recent-size", type=int, default=500)
     args = parser.parse_args()
 
     main(args)
