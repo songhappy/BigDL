@@ -45,7 +45,7 @@ import warnings
 import torch
 import argparse
 import os
-from transformers.utils import is_torch_xpu_available
+#from transformers.utils import is_torch_xpu_available
 import os, sys
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 stream_llm_src = CURRENT_DIR.replace("GPU", "CPU") + "/streaming_llm/"
@@ -57,21 +57,30 @@ warnings.filterwarnings("ignore")
 
 @torch.no_grad()
 def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
+    import time 
+    first_start=time.time()
     outputs = model(
         input_ids=input_ids,
         past_key_values=past_key_values,
         use_cache=True,
     )
+    first_end=time.time()
+    first_time=first_end-first_start
+    print("first time:", first_time)    
     past_key_values = outputs.past_key_values
     pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1)
     generated_ids = [pred_token_idx.item()]
     pos = 0
+    next_times= []
     for _ in range(max_gen_len - 1):
+        next_start=time.time()
         outputs = model(
             input_ids=pred_token_idx,
             past_key_values=past_key_values,
             use_cache=True,
         )
+        next_end=time.time()
+        next_times.append(next_end-next_start)
         past_key_values = outputs.past_key_values
         pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1)
         generated_ids.append(pred_token_idx.item())
@@ -91,39 +100,56 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
             print(" ".join(generated_text[pos:now]), end=" ", flush=True)
             pos = now
 
-        if pred_token_idx == tokenizer.eos_token_id:
-            break
+        # if pred_token_idx == tokenizer.eos_token_id:
+        #     break
+    
+    next_time=sum(next_times)/len(next_times)
+    print("\n","next time:", next_time)    
+
     print(" ".join(generated_text[pos:]), flush=True)
-    return past_key_values
+    return past_key_values, first_time, next_time
 
 
 @torch.no_grad()
-def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=200):
+def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=32):
     past_key_values = None
+    import time
+
+    first_times = []
+    next_times = []
     for idx, prompt in enumerate(prompts):
-        print("***************************", idx)
-        prompt = "USER: " + prompt + "\n\nASSISTANT: "
+        print("***************************idx=", idx)
+        print("prompt:", prompt)
+        prompt = "USER: " + prompt[:] + "\n\nASSISTANT: "
         print("\n" + prompt, end="")
         input_ids = tokenizer(prompt, return_tensors="pt").input_ids
         input_ids = input_ids.to(model.device)
         seq_len = input_ids.shape[1]
+        print("sequence length:", seq_len)
+
         if kv_cache is not None:
             space_needed = seq_len + max_gen_len
             past_key_values = kv_cache.evict_for_space(past_key_values, space_needed)
 
-        past_key_values = greedy_generate(
+        past_key_values, first_time, next_time = greedy_generate(
             model, tokenizer, input_ids, past_key_values, max_gen_len=max_gen_len
-       
         )
-        print("******** past key values", past_key_values[0][0].size(), past_key_values[0][1].size())
-        print("past key values device", past_key_values[0][0].device)
-        
+        print("past_key_values[0].shape", past_key_values[0][0].shape)
+        print("past_key_values[1].shape", past_key_values[1][0].shape)
 
+        if idx > 1:
+            first_times.append(first_time)
+            next_times.append(next_time)
+    import math
+    print("first_times:", sum(first_times)/len(first_times)) 
+    print("next_times:", sum(next_times)/len(next_times))
+        
 
 def main(args):
     model, tokenizer = load(args.repo_id_or_model_path)
-    # device = 'xpu' if is_torch_xpu_available() else 'cpu'
-    # model = model.to(device)
+    #device = 'xpu' if is_torch_xpu_available() else 'cpu'
+    device='xpu'
+    model = model.to(device)
     test_filepath = os.path.join(args.data_root, "mt_bench.jsonl")
     print(f"Loading data from {test_filepath} ...")
 
@@ -135,10 +161,15 @@ def main(args):
         os.rename(os.path.join(args.data_root, "question.jsonl"), test_filepath)
 
     list_data = load_jsonl(test_filepath)
+    
     prompts = []
-    for sample in list_data[1:5]:
+    for sample in list_data[:]:
         prompts += sample["turns"]
-
+        print(sample["turns"])
+    print("------------------------------------------prompts")
+    print(len(prompts))
+    for _ in prompts:
+        print(_)
     if args.enable_streaming:
         kv_cache = enable_streaming_llm(
             model, start_size=args.start_size, recent_size=args.recent_size

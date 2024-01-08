@@ -337,8 +337,10 @@ def run_transformer_int4_gpu(repo_id,
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         model = model.to('xpu')
     elif repo_id in LLAMA_IDS:
-        model = AutoModelForCausalLM.from_pretrained(model_path, load_in_low_bit=low_bit, trust_remote_code=True,
+        model = AutoModelForCausalLM.from_pretrained(model_path, optimize_model=False, trust_remote_code=True,
                                                      use_cache=True)
+        #model = AutoModelForCausalLM.from_pretrained(model_path, load_in_low_bit=lowbit, optimize_model=True, trust_remote_code=True,
+        #                                             use_cache=True)
         tokenizer = LlamaTokenizer.from_pretrained(model_path, trust_remote_code=True)
         model = model.to('xpu')
     else:
