@@ -24,7 +24,7 @@ conda activate llm
 
 pip install --pre --upgrade ipex-llm[all] --extra-index-url https://download.pytorch.org/whl/cpu
 
-pip install transformers==4.37.0
+pip install transformers==4.37.0   # phi-3 cannot work with transformers < 4.37
 ```
 
 On Windows:
@@ -35,7 +35,7 @@ conda activate llm
 
 pip install --pre --upgrade ipex-llm[all]
 
-pip install transformers==4.37.0
+pip install transformers==4.37.0   # phi-3 cannot work with transformers < 4.37
 ```
 
 ### 2. Run
