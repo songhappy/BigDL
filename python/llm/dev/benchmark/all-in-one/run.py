@@ -1990,6 +1990,8 @@ if __name__ == '__main__':
             batch_list = conf["batch_size"]
         for batch_size in batch_list:
             for model in conf.repo_id:
+                print("------------------------------------------------")
+                print("model:", model)
                 in_out_pairs = conf['in_out_pairs'].copy()
                 if excludes:
                     for in_out in conf['in_out_pairs']:

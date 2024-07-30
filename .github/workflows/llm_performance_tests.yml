@@ -145,7 +145,7 @@ jobs:
           python -m pip install --upgrade expecttest
           bash python/llm/test/run-llm-install-tests.sh
 
-      - name: Test on xpu(transformers==4.41.2)
+      - name: Test on xpu(transformers==4.41.2 config)
         shell: bash
         run: |
           date_for_test_version=$(date -d yesterday +%Y-%m-%d)
@@ -184,7 +184,7 @@ jobs:
           python run.py
           mv *.csv test_batch4
 
-      - name: Test on xpu(transformers==4.41.2)
+      - name: Test on xpu(transformers==4.41.2 437)
         shell: bash
         run: |
           source /opt/intel/oneapi/setvars.sh
@@ -216,7 +216,7 @@ jobs:
           python run.py
           mv *.csv test_batch4
       
-      - name: Test on xpu(transformers==4.41.2)
+      - name: Test on xpu(transformers==4.41.2 440)
         shell: bash
         run: |
           source /opt/intel/oneapi/setvars.sh
